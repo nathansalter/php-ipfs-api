@@ -2,91 +2,124 @@
 
 namespace NathanSalter\PhpIpfsApi;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\RequestOptions;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
 final class IpfsClient implements IpfsInterface
 {
     /**
-     * @var string
+     * @var Client
      */
-    private $gatewayIp;
+    private $gatewayClient;
 
     /**
-     * @var int
+     * @var Client
      */
-    private $gatewayPort;
+    private $gatewayApiClient;
 
-    /**
-     * @var int
-     */
-    private $gatewayApiPort;
-
-    function __construct(string $ip = "localhost", int $port = 8080, int $apiPort = 5001)
+    function __construct(Client $gatewayClient, Client $gatewayApiClient)
     {
-        $this->gatewayIp      = $ip;
-        $this->gatewayPort    = $port;
-        $this->gatewayApiPort = $apiPort;
+        $this->gatewayClient = $gatewayClient;
+        $this->gatewayApiClient = $gatewayApiClient;
     }
 
-    public function cat (string $hash): string
+    public function cat(string $hash): string
     {
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayPort;
-        return $this->curl(sprintf('http://%s:%s/ipfs/%s', $ip, $port, $hash);
+        $response = $this->gatewayClient->get(sprintf('/ipfs/%s', $hash), [RequestOptions::HTTP_ERRORS => false]);
+        if (404 === $response->getStatusCode()) {
+            throw new HashNotFoundException(sprintf('The hash %s was not found in any IPFS nodes', $hash));
+        }
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException(sprintf('General failure in IPFS lookup for hash %s', $hash));
+        }
 
+        return $response->getBody()->getContents();
     }
 
-    public function add ($content): string
+    public function add(string $content): string
     {
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayApiPort;
+        $response = $this->gatewayApiClient->post('/add?stream-channels=true', [
+            RequestOptions::BODY => $content,
+            RequestOptions::HTTP_ERRORS => false,
+        ]);
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException('General failure saving IPFS content');
+        }
+        $objectInfo = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
 
-        $req = $this->curl(sprintf('http://%s:%s/api/v0/add?stream-channels=true', $ip, $port), $content);
-        $req = json_decode($req, true);
-
-        return $req['Hash'];
+        return $objectInfo['Hash'];
     }
 
-    public function ls ($hash): array
+    public function ls(string $hash): array
     {
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayApiPort;
+        $response = $this->gatewayApiClient->get(sprintf('/ls/%s', $hash), [RequestOptions::HTTP_ERRORS => false]);
+        if (404 === $response->getStatusCode()) {
+            throw new HashNotFoundException(sprintf('The hash %s was not found in any IPFS nodes', $hash));
+        }
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException(sprintf('General failure in IPFS lookup for hash %s', $hash));
+        }
 
-        $response = $this->curl("http://$ip:$port/api/v0/ls/$hash");
-
-        $data = json_decode($response, true);
+        $data = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
 
         return $data['Objects'][0]['Links'];
     }
 
-    public function size ($hash): int
+    public function size(string $hash): int
     {
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayApiPort;
+        $response = $this->gatewayApiClient->get(sprintf('/object/stat/%s', $hash), [
+            RequestOptions::HTTP_ERRORS => false
+        ]);
+        if (404 === $response->getStatusCode()) {
+            throw new HashNotFoundException(sprintf('The hash %s was not found in any IPFS nodes', $hash));
+        }
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException(sprintf('General failure in IPFS lookup for hash %s', $hash));
+        }
 
-        $response = $this->curl("http://$ip:$port/api/v0/object/stat/$hash");
-        $data = json_decode($response, true);
+        $objectInfo = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
 
-        return $data['CumulativeSize'];
+        return $objectInfo['CumulativeSize'];
     }
 
-    public function pinAdd ($hash): array
+    public function pinAdd(string $hash): array
     {
-
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayApiPort;
-
-        $response = $this->curl("http://$ip:$port/api/v0/pin/add/$hash");
-        $data = json_decode($response, true);
+        $response = $this->gatewayApiClient->get(sprintf('/pin/add/%s', $hash), [
+            RequestOptions::HTTP_ERRORS => false
+        ]);
+        if (404 === $response->getStatusCode()) {
+            throw new HashNotFoundException(sprintf('The hash %s was not found in any IPFS nodes', $hash));
+        }
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException(sprintf('General failure in IPFS lookup for hash %s', $hash));
+        }
+        $data = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
 
         return $data;
     }
 
-    public function version (): string
+    public function version(): string
     {
-        $ip = $this->gatewayIp;
-        $port = $this->gatewayApiPort;
-        $response = $this->curl("http://$ip:$port/api/v0/version");
-        $data = json_decode($response, true);
+        $response = $this->gatewayApiClient->get(sprintf('/pin/add/%s', $hash), [
+            RequestOptions::HTTP_ERRORS => false
+        ]);
+        if (200 !== $response->getStatusCode()) {
+            throw new IpfsFailureException('General failure in IPFS looking for version');
+        }
+        $data = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
         return $data["Version"];
+    }
+
+    private function getHeaders(): array
+    {
+        return [
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'file'
+        ];
     }
 
     private function curl ($url, $data = ""): string
@@ -106,7 +139,7 @@ final class IpfsClient implements IpfsInterface
         }
 
         $output = curl_exec($ch);
-        if ($output == FALSE) {
+        if ($output == false) {
             //todo: when ipfs doesn't answer
         }
         curl_close($ch);
