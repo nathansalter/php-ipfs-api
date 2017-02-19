@@ -2,10 +2,21 @@
 
 namespace Cloutier\PhpIpfsApi;
 
-class IpfsClient implements IpfsInterface
+final class IpfsClient implements IpfsInterface
 {
+    /**
+     * @var string
+     */
     private $gatewayIp;
+
+    /**
+     * @var int
+     */
     private $gatewayPort;
+
+    /**
+     * @var int
+     */
     private $gatewayApiPort;
 
     function __construct(string $ip = "localhost", int $port = 8080, int $apiPort = 5001)
