@@ -3,33 +3,27 @@ IPFS API wrapper library in PHP
 
 > A client library for the IPFS API.
 
-Good news everyone! [S3r3nity](http://www.s3r3nity.com/) is sponsoring the development of this library.
-They will be using it inside one of their (unannounced) projects and its maintainer is hired
-to implement all the missing api calls (including the new file api) before the end of September 2016.
-
-**Warning:** Changes will be made from user's suggestions and this warning will be removed when everything is stable.
-First stable release is scheduled for the end of September 2016.
+As no progress has been made from `cloutier` in 6 months, I'm forking this to build in my own project.
 
 # Usage
 
 ## Installing 
 
-This library requires the cURL module:
+This library requires PHP 7.0 or above:
 
 ```bash
-$ sudo apt-get install php5-curl
-$ composer require cloutier/php-ipfs-api
+$ composer require nathansalter/php-ipfs-api
 $ composer install
 ```
 
 ```PHP
-use Cloutier\PhpIpfsApi\IPFS;
+use NathanSalter\PhpIpfsApi\IpfsClient;
 
 // connect to ipfs daemon API server
-$ipfs = new IPFS("localhost", "8080", "5001"); // leaving out the arguments will default to these values
+$ipfs = new IpfsClient("localhost", "8080", "5001"); // leaving out the arguments will default to these values
 ```
 
-
+Please note; the above will soon change to be using GuzzleHttp instead of raw CURL.
 
 ## API
 
@@ -40,7 +34,7 @@ Adds content to IPFS.
 
 **Usage**
 ```PHP
-$hash = $ipfs->add("Hello world");
+$hash = $ipfs->add('Hello world');
 ```
 
 
@@ -59,12 +53,12 @@ Gets the node structure of a hash.
 
 **Usage**
 ```PHP
-$obj = $ipfs->ls($hash);
+$hashes = $ipfs->ls($hash);
 
-foreach ($obj as $e) {
-	echo $e['Hash'];
-	echo $e['Size'];
-	echo $e['Name'];
+foreach ($hashes as $e) {
+    echo $e['Hash'];
+    echo $e['Size'];
+    echo $e['Name'];
 }
 ```
 
