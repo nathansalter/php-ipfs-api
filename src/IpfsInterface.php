@@ -1,6 +1,6 @@
 <?php
 
-namespace Cloutier\PhpIpfsApi;
+namespace NathanSalter\PhpIpfsApi;
 
 interface IpfsInterface
 {
